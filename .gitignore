@@ -1,0 +1,23 @@
+# PlatformIO
+.pio/
+.pioenvs/
+.piolibdeps/
+
+# IDEs (VS Code)
+.vscode/
+!.vscode/extensions.json
+!.vscode/settings.json
+
+# Build and temp files
+*.o
+*.bin
+*.elf
+*.hex
+.gcc-flags.json
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Project-specific
+App/Core/inc/Secrets.h
