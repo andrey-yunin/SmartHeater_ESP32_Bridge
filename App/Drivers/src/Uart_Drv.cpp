@@ -1,26 +1,30 @@
- #include "Uart_Drv.h"
 
- void Uart_Drv::Init(uint32_t baud) {
-    // Инициализация Serial2. 
-    // Пины можно переопределить через Serial2.begin(baud, SERIAL_8N1, RX_PIN, TX_PIN);
+#include "Uart_Drv.h"
+
+// Инициализация статического члена класса
+Fifo_Drv<256> Uart_Drv::_rxFifo;
+
+void Uart_Drv::Init(uint32_t baud) {
     Serial2.begin(baud);
-    while(!Serial2); // Ожидание инициализации (для ESP32 обычно мгновенно)
+    _rxFifo.Flush();
+}
+
+void Uart_Drv::Update() {
+    // Пока в аппаратном буфере ESP32 есть байты - перекладываем их в наш FIFO
+    while (Serial2.available() > 0) {
+        uint8_t byte = (uint8_t)Serial2.read();
+        _rxFifo.Push(byte);
     }
+}
 
-    bool Uart_Drv::ReadByte(uint8_t &byte) {
-    if (Serial2.available() > 0) {
-        byte = (uint8_t)Serial2.read();
-        return true;
-        }
-        return false;
+bool Uart_Drv::ReadByte(uint8_t &byte) {
+    // Теперь читаем данные не из Serial2 напрямую, а из нашего FIFO
+    return _rxFifo.Pop(byte);
+}
+
+void Uart_Drv::SendBytes(const uint8_t *data, size_t len) {
+    if (data != nullptr && len > 0) {
+        Serial2.write(data, len);
     }
+}
 
-    void Uart_Drv::SendBytes(const uint8_t *data, size_t len) {
-        if (data != nullptr && len > 0) {
-            Serial2.write(data, len);
-            }
-        }
-
-    int Uart_Drv::Available() {
-        return Serial2.available();
-        }
