@@ -3,6 +3,7 @@
 #include "Cmd_Srv.h"       // Подключаем сервис команд
 #include "WiFi_Drv.h"      // Подключаем WiFi
 #include "Uart_Task.h"
+#include "Network_Task.h"
 
 void setup() {
     // 1. Инициализация системного лога (через USB)
@@ -26,7 +27,8 @@ void setup() {
 
     // 4. Запуск задачи UART (внутри нее создастся поток FreeRTOS)
     // Она сама инициализирует драйвер и начнет слушать STM32
-    Uart_Task_Init();
+    Uart_Task_Init(); // Core 1 (UART Logic)
+    Network_Task_Init(); // Core 0 (Network & Web)
 
     Serial.println("[Main] System initialized. RTOS Scheduler running...");
 }
@@ -34,7 +36,7 @@ void setup() {
 void loop() {
     // ОБЯЗАТЕЛЬНО: Пока у нас нет Network_Task, обновляем статус WiFi здесь.
     // Без этого мы не увидим IP-адрес и не выставим системные флаги.
-    WiFi_Drv::Update();
+    // WiFi_Drv::Update();
     
     // В RTOS-проектах на ESP32 loop() обычно пустой или 
     // используется для второстепенных задач с низким приоритетом.
