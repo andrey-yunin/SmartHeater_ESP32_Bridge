@@ -2,6 +2,8 @@
 #include "Uart_Drv.h"
 #include "Protocol_Srv.h"
 #include "System_State.h" // Подключаем хранилище данных
+#include "Cmd_Srv.h"       // Подключаем сервис команд
+
 
 
 // Создаем экземпляр парсера протокола для этой задачи
@@ -31,12 +33,27 @@ void Uart_Task_Loop(void *pvParameters) {
     Serial.println("[UartTask] Started on Core 1");
 
     while (1) {
-        // 1.Выкачиваем байты из железа в наш FIFO ---
+        // --- 1. ПРОВЕРКА ОЧЕРЕДИ КОМАНД (Web -> STM32) ---
+        // Если в очереди есть команда от пользователя, отправляем её немедленно
+        Frame_t cmdFrame;
+
+        if (Cmd_Srv::Dequeue(cmdFrame)) {
+            uint8_t outBuf[20];
+            // Упаковываем команду (например, 0x13 - SET_TEMP)
+            size_t packetSize = Protocol_Srv::PackFrame(cmdFrame.cmd, cmdFrame.data, cmdFrame.len, outBuf);
+            // Отправляем в UART
+            Uart_Drv::SendBytes(outBuf, packetSize);
+
+            Serial.printf("[UartTask] TX -> Sent CMD 0x%02X to STM32 (Data Len: %d)\n", cmdFrame.cmd, cmdFrame.len);
+        }
+
+        // --- 2. ПРИЕМ ДАННЫХ ИЗ ЖЕЛЕЗА ---
         Uart_Drv::Update();
 
         uint32_t currentTime = millis();
 
-        // 2. ПЕРИОДИЧЕСКАЯ ОТПРАВКА PING (раз в 5 секунд)
+
+        // 3. ПЕРИОДИЧЕСКАЯ ОТПРАВКА PING (раз в 5 секунд)
         if (currentTime - lastPingTime >= 5000) {
             lastPingTime = currentTime;
 
@@ -46,7 +63,7 @@ void Uart_Task_Loop(void *pvParameters) {
             Uart_Drv::SendBytes(outBuf, packetSize);            
         }
 
-        // 2. ПРИЕМ И ОБРАБОТКА ДАННЫХ ИЗ FIFO
+        // 4. ПРИЕМ И ОБРАБОТКА ДАННЫХ ИЗ FIFO
         // Теперь ReadByte берет данные из нашего надежного буфера Fifo_Drv
         while (Uart_Drv::ReadByte(byte)) {
             ProtocolStatus status = protocol.ProcessByte(byte);
