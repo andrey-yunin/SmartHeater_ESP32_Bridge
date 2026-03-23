@@ -4,12 +4,18 @@
 #include "WiFi_Drv.h"      // Подключаем WiFi
 #include "Uart_Task.h"
 #include "Network_Task.h"
+#include "Storage_Drv.h"
+
 
 void setup() {
     // 1. Инициализация системного лога (через USB)
     // Это наш монитор, куда будут падать сообщения о приеме пакетов
     Serial.begin(115200);
     delay(1000); // Небольшая пауза, чтобы успел открыться монитор порта
+
+    // Инициализируем хранилище ПЕРЕД сетевыми задачами
+    Storage_Drv::Init();
+
 
     Serial.println("=================================");
     Serial.println("SmartHeater ESP32 Bridge Starting");

@@ -1,0 +1,50 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Smart Heater Control</title>
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <div class="container">
+        <header>
+            <span id="status-badge" class="badge">Offline</span>
+            <h1>Smart Heater</h1>
+        </header>
+
+        <main>
+            <div id="main-gauge" class="gauge">
+                <div class="gauge-display">
+                    <div class="gauge-value">
+                        <span id="temp-curr">--.-</span><small>°C</small>
+                    </div>
+                    <div class="gauge-label">Текущая температура</div>
+                </div>
+                <div class="heat-indicator">
+                    <span class="icon">♨</span>
+                </div>
+            </div>
+
+            <div class="control-panel">
+                <div class="target-info">Уставка: <span id="temp-target-val">--.-</span>°C</div>
+                <input type="range" id="temp-slider" min="5" max="35" step="0.5">
+                <div class="presets">
+                    <button onclick="setPreset(5)">❄️</button>
+                    <button onclick="setPreset(22)">🏠</button>
+                    <button onclick="setPreset(25)">🔥</button>
+                </div>
+            </div>
+        </main>
+
+        <footer>
+            <div class="info-grid">
+                <div class="card"><label>РЕЖИМ</label><div id="relay-status">--</div></div>
+                <div class="card"><label>ДАТЧИК</label><div id="sensor-status">--</div></div>
+                <div class="card"><label>Uptime</label><div id="uptime">0с</div></div>
+            </div>
+        </footer>
+    </div>
+    <script src="app.js"></script>
+</body>
+</html>

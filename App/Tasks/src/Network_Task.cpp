@@ -2,10 +2,45 @@
 #include "WiFi_Drv.h"
 #include "Api_Srv.h"
 #include "Cmd_Srv.h" // Добавили для управления
+#include <LittleFS.h> // Добавили для работы с файлами
+
 
 
 // Создаем веб-сервер на стандартном 80 порту
 static WebServer server(80);
+
+
+/**
+ * @brief Автоматическая раздача файлов из LittleFS
+ */
+bool handleFileRead(String path) {
+    // Если путь корень, ищем index.html
+
+    if (path.endsWith("/")) path += "index.html";
+
+    // Определяем тип контента (MIME)
+    String contentType = "text/plain";
+    if (path.endsWith(".html")) contentType = "text/html";
+    else if (path.endsWith(".css"))  contentType = "text/css";
+    else if (path.endsWith(".js"))   contentType = "application/javascript";
+    else if (path.endsWith(".json")) contentType = "application/json";
+
+    // Если файл существует - отдаем его
+    if (LittleFS.exists(path)) {
+        File file = LittleFS.open(path, "r");
+        server.streamFile(file, contentType);
+        file.close();
+        return true;
+    }
+    return false;
+    }
+
+/**
+ * @brief Обработчик запроса статуса (/api/status)
+ */
+void handleStatus() {
+    server.send(200, "application/json", Api_Srv::GetSystemStatusJson());
+}
 
 /**
  * @brief Обработчик установки температуры (/api/set_temp?val=25.5)
@@ -21,8 +56,10 @@ void handleSetTemp() {
 
         // Отправляем в очередь команду 0x13 (SET_TARGET)
         if (Cmd_Srv::Enqueue(0x13, data, 2)) {
-            server.send(200, "application/json", "{\"status\":\"ok\"}");
-            Serial.printf("[NetTask] Web Command -> SET_TEMP: %.1f\n", val);
+            // ОПТИМИСТИЧНОЕ ОБНОВЛЕНИЕ: Записываем в состояние сразу, не дожидаясь ответа STM32
+            System_State::instance().SetTargetTemp(val);
+            Serial.printf("[NetTask] Command -> SET_TEMP: %.1f (0x%04X)\n", val, raw);
+            server.send(200, "application/json", "{\"status\":\"ok\"}");            
         }
         else {
             server.send(500, "application/json", "{\"status\":\"error\",\"msg\":\"Queue full\"}");
@@ -34,10 +71,11 @@ void handleSetTemp() {
 }
 
 
+
 /**
  * @brief Обработчик корневой страницы (/)
  * Отдает минимальный HTML с JS-скриптом для мониторинга
- */
+ *
 void handleRoot() {
     String html = "<html><head><meta charset='UTF-8'><title>Smart Heater</title>";
         html += "<style>body{font-family:sans-serif;text-align:center;padding:20px;}";
@@ -64,12 +102,7 @@ void handleRoot() {
         server.send(200, "text/html", html);
 }
  
-/**
- * @brief Обработчик запроса статуса (/api/status)
- */
-void handleStatus() {
-    server.send(200, "application/json", Api_Srv::GetSystemStatusJson());
-}
+*/
 
 void Network_Task_Init() {
     // Создаем задачу на Core 0 (ядро WiFi/BT стека)
@@ -86,30 +119,25 @@ void Network_Task_Init() {
 
 void Network_Task_Loop(void *pvParameters) {
     Serial.println("[NetTask] Started on Core 0");
-
-    // РЕГИСТРАЦИЯ МАРШРУТОВ (ЭНДПОИНТОВ)
-    // ---------------------------------
-    // 1. Корень - отдает HTML страницу   
-    server.on("/", handleRoot);
-
-    // 2. Статус - отдает JSON данные
+   
+    // РЕГИСТРАЦИЯ МАРШРУТОВ
     server.on("/api/status", handleStatus);
-
-    // 3. Управление - ВАЖНО: без нее выдает ошибку 404
-    server.on("/api/set_temp", handleSetTemp); 
-
+    server.on("/api/set_temp", handleSetTemp);
+   
+    // ВАЖНО: Если запрос не к API, ищем файл в LittleFS
+    server.onNotFound([]() {
+        if (!handleFileRead(server.uri())) {
+            server.send(404, "text/plain", "File Not Found");
+        }
+    });
 
     server.begin();
-    Serial.println("[NetTask] Web Server started");
-
+    Serial.println("[NetTask] Web Server ready for static files from LittleFS");
+   
     while (1) {
-        // WiFi_Drv::Update() теперь живет в этом потоке
         WiFi_Drv::Update();
-
-        // Обработка HTTP-запросов
         server.handleClient();
-
-        // Пауза для планировщика FreeRTOS
         vTaskDelay(pdMS_TO_TICKS(10));
     }
 }
+

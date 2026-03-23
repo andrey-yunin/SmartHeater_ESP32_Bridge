@@ -3,6 +3,12 @@
 System_State::System_State() {
     _mutex = xSemaphoreCreateMutex();
     memset(&_state, 0, sizeof(HeaterData_t));
+
+    // ПРЕДОТВРАЩЕНИЕ БАГА: задаем начальные значения, чтобы UI не видел 0.0
+    _state.targetTemp = 22.0f; 
+    _state.currentTemp = 22.0f;
+    _state.sensorStatus = 0; // OK по умолчанию
+    _state.lastUpdate = 0;
 }
 
 
@@ -53,4 +59,11 @@ bool System_State::isStm32Alive() {
     xSemaphoreGive(_mutex);
     }
     return alive;
+}
+
+void System_State::SetTargetTemp(float val) {
+    if (xSemaphoreTake(_mutex, pdMS_TO_TICKS(100)) == pdTRUE) {
+        _state.targetTemp = val;
+        xSemaphoreGive(_mutex);
+    }
 }

@@ -37,6 +37,9 @@ class System_State {
         // Обновление из пакета 0x04 (HEALTH_DATA) - 7 байт
         void UpdateHealthData(const uint8_t* data);
 
+        // Прямая установка уставки (из API/Web) для мгновенного отклика UI
+        void SetTargetTemp(float val);
+
         // Получение копии данных (потокобезопасно)
         HeaterData_t GetData();
 
