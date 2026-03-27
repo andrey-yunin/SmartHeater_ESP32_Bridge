@@ -28,7 +28,9 @@ void Uart_Task_Init() {
 void Uart_Task_Loop(void *pvParameters) {
     uint8_t byte;
     Frame_t frame;
-    uint32_t lastPingTime = 0; // Таймер для отправки PING  
+
+    // Инициализируем временем старта, чтобы не пинговать сразу
+    uint32_t lastRxTime = millis();   
    
     Serial.println("[UartTask] Started on Core 1");
 
@@ -53,14 +55,16 @@ void Uart_Task_Loop(void *pvParameters) {
         uint32_t currentTime = millis();
 
 
-        // 3. ПЕРИОДИЧЕСКАЯ ОТПРАВКА PING (раз в 5 секунд)
-        if (currentTime - lastPingTime >= 5000) {
-            lastPingTime = currentTime;
+        // 3. WATCHDOG СВЯЗИ (ARCHITECTURE.md: PING 0x10 если нет данных > 65с)
+        if (currentTime - lastRxTime >= 65000) {
+            // Сбрасываем таймер, чтобы не спамить пингами, если ответа нет
+            lastRxTime = currentTime; 
 
             uint8_t outBuf[10];
-            // Упаковываем команду 0x10 (PING), данных нет (len=0)
             size_t packetSize = Protocol_Srv::PackFrame(0x10, nullptr, 0, outBuf);
-            Uart_Drv::SendBytes(outBuf, packetSize);            
+            Uart_Drv::SendBytes(outBuf, packetSize);
+
+            Serial.println("[UartTask] TX -> Watchdog: Sent PING (0x10) due to RX timeout");
         }
 
         // 4. ПРИЕМ И ОБРАБОТКА ДАННЫХ ИЗ FIFO
@@ -69,6 +73,8 @@ void Uart_Task_Loop(void *pvParameters) {
             ProtocolStatus status = protocol.ProcessByte(byte);
 
             if (status == ProtocolStatus::READY) {
+                // Обновляем время последнего приема — канал живой
+                lastRxTime = millis(); 
                 protocol.GetFrame(frame);
 
                 // --- РАСПРЕДЕЛЕНИЕ КОМАНД  ---
@@ -85,7 +91,10 @@ void Uart_Task_Loop(void *pvParameters) {
                     System_State::instance().UpdateHealthData(frame.data);
                     // ПОЛУЧАЕМ КОПИЮ ДАННЫХ ДЛЯ ПЕЧАТИ (добавьте эту строку):
                     HeaterData_t data = System_State::instance().GetData();
-                    Serial.printf("[UartTask] RX <- HEALTH_DATA (0x04). STM32 Uptime: %d sec\n", data.uptime);                    
+                    Serial.printf("[UartTask] RX <- HEALTH (0x04). Relay: %s, Sensor: %d, Uptime: %d\n", 
+                        data.relayStatus ? "ON (ГРЕЕТ)" : "OFF", 
+                        data.sensorStatus,
+                        data.uptime);
                 }
 
                 // Если пришел ответ ACK (0x01)
@@ -108,6 +117,6 @@ void Uart_Task_Loop(void *pvParameters) {
         }
         
         // Небольшая задержка для планировщика FreeRTOS
-        vTaskDelay(pdMS_TO_TICKS(1));
+        vTaskDelay(pdMS_TO_TICKS(10));
     }
 }

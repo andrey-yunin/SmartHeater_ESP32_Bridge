@@ -52,9 +52,10 @@ HeaterData_t System_State::GetData() {
 
 bool System_State::isStm32Alive() {
     bool alive = false;
-    if (xSemaphoreTake(_mutex, pdMS_TO_TICKS(50)) == pdTRUE) {
+    // Даем 200мс на ожидание (вместо 50), если UART сейчас пишет данные
+    if (xSemaphoreTake(_mutex, pdMS_TO_TICKS(200)) == pdTRUE) {
         if (_state.lastUpdate > 0) {
-            alive = (millis() - _state.lastUpdate < 5000);
+            alive = (millis() - _state.lastUpdate < 65000);
         }
     xSemaphoreGive(_mutex);
     }
